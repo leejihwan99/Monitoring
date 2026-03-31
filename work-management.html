@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>검색작품관리</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="css/shared.css">
+<style>
+  :root { --page-color: var(--orange); }
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+
+  /* 입력 폼 */
+  .add-form {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr auto;
+    gap: 10px;
+    align-items: end;
+  }
+  .form-field { display: flex; flex-direction: column; gap: 6px; }
+  .form-label { font-family: var(--mono); font-size: 11px; color: var(--text2); letter-spacing: 0.05em; }
+  .form-input {
+    height: 36px; padding: 0 12px;
+    background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: 6px; color: var(--text);
+    font-family: var(--sans); font-size: 13px; outline: none;
+    transition: border-color 0.15s;
+  }
+  .form-input:focus { border-color: var(--accent); }
+  .form-input::placeholder { color: var(--text3); }
+  .form-input.error { border-color: var(--red); }
+
+  .btn-add {
+    height: 36px; padding: 0 20px; border-radius: 6px;
+    background: var(--accent); border: 1px solid var(--accent2);
+    color: #fff; font-family: var(--sans); font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .btn-add:hover { background: var(--accent2); }
+  .btn-add:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* 테이블 URL 셀 */
+  .url-cell {
+    max-width: 220px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+    font-family: var(--mono); font-size: 12px; color: var(--text2);
+  }
+  .url-cell a { color: var(--accent); text-decoration: none; }
+  .url-cell a:hover { text-decoration: underline; }
+
+  .del-btn {
+    width: 28px; height: 28px; border-radius: 5px;
+    border: 1px solid var(--border2); background: none;
+    color: var(--text3); font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; flex-shrink: 0;
+  }
+  .del-btn:hover { border-color: var(--red); color: var(--red); }
+
+  @media (max-width: 1000px) {
+    .add-form { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 600px) {
+    .add-form { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="header-dot orange"></div>
+    <div>
+      <div class="header-brand">저작권 통합관리 시스템</div>
+      <div class="header-page">검색작품관리</div>
+    </div>
+    <div class="header-divider"></div>
+    <nav class="nav">
+      <a class="nav-btn" href="crawling-monitor.html">크롤링 모니터링</a>
+      <a class="nav-btn" href="domestic-distribution.html">국내유포작품관리</a>
+      <a class="nav-btn active" href="work-management.html">검색작품관리</a>
+      <a class="nav-btn" href="search-monitor.html">검색 모니터링</a>
+    </nav>
+  </div>
+  <div class="sheet-badge" id="sheetBadge">● GOOGLE SHEETS</div>
+</div>
+
+<div class="main">
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-label">등록 작품 수</div><div class="stat-value accent" id="statTotal">0</div></div>
+    <div class="stat-card"><div class="stat-label">작가 수</div><div class="stat-value orange" id="statAuthors">0</div></div>
+  </div>
+
+  <!-- 작품 추가 폼 -->
+  <div class="add-form">
+    <div class="form-field">
+      <label class="form-label">작품명 *</label>
+      <input class="form-input" id="inTitle" placeholder="작품명 입력" oninput="clearError(this)">
+    </div>
+    <div class="form-field">
+      <label class="form-label">영문명 *</label>
+      <input class="form-input" id="inTitleEn" placeholder="영문명 입력" oninput="clearError(this)">
+    </div>
+    <div class="form-field">
+      <label class="form-label">작가명 *</label>
+      <input class="form-input" id="inAuthor" placeholder="작가명 입력" oninput="clearError(this)">
+    </div>
+    <div class="form-field">
+      <label class="form-label">URL *</label>
+      <input class="form-input" id="inUrl" placeholder="URL 입력" oninput="clearError(this)">
+    </div>
+    <button class="btn-add" onclick="addWork()">+ 추가</button>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="search-box">
+      <span class="search-icon">⌕</span>
+      <input type="text" id="searchInput" placeholder="작품명 · 작가명 검색..." oninput="render()">
+    </div>
+    <div class="spacer"></div>
+    <label class="upload-btn" for="fileInput">↑ 엑셀 업로드</label>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFileUpload(event)">
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th onclick="sortBy('title')">작품명 <span class="sort-icon">↕</span></th>
+          <th onclick="sortBy('titleEn')">영문명 <span class="sort-icon">↕</span></th>
+          <th onclick="sortBy('author')">작가명 <span class="sort-icon">↕</span></th>
+          <th>URL</th>
+          <th style="width:44px"></th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="upload-progress" id="uploadProgress">
+  <div id="uploadMsg">처리 중...</div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="js/shared.js"></script>
+<script>
+let works       = [];  // { title, titleEn, author, url }
+let currentSort = { key: 'title', dir: 1 };
+
+// ── 중복 키: title + titleEn + author + url 모두 같을 때만 중복 ──
+function dedupKey(w) {
+  return `${String(w.title||'').trim()}|${String(w.titleEn||'').trim()}|${String(w.author||'').trim()}|${String(w.url||'').trim()}`;
+}
+
+// ── Load ──
+async function loadFromSheets() {
+  try {
+    const data = await apiGet('getWorks');
+    works = data.works || [];
+    showToast('시트 데이터 로드 완료', 'success');
+  } catch (e) { showToast('시트 연결 실패', 'error'); }
+}
+
+// ── Render ──
+function render() {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  let rows = q
+    ? works.filter(w => w.title.toLowerCase().includes(q) || (w.author||'').toLowerCase().includes(q))
+    : [...works];
+
+  rows.sort((a, b) => {
+    const av = String(a[currentSort.key] || ''), bv = String(b[currentSort.key] || '');
+    return av.localeCompare(bv, 'ko') * currentSort.dir;
+  });
+
+  document.getElementById('statTotal').textContent   = works.length.toLocaleString();
+  document.getElementById('statAuthors').textContent = new Set(works.map(w => w.author).filter(Boolean)).size.toLocaleString();
+
+  const tbody = document.getElementById('tableBody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="5">등록된 작품이 없습니다</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((w, i) => `
+    <tr>
+      <td style="font-weight:600">${w.title}</td>
+      <td style="color:var(--text2)">${w.titleEn || '—'}</td>
+      <td>${w.author || '—'}</td>
+      <td class="url-cell">${w.url ? `<a href="${w.url}" target="_blank">${w.url}</a>` : '—'}</td>
+      <td><button class="del-btn" onclick="deleteWork(${works.indexOf(w)})" title="삭제">✕</button></td>
+    </tr>`).join('');
+}
+
+// ── Add (폼에서 직접 추가) ──
+async function addWork() {
+  const title   = document.getElementById('inTitle').value.trim();
+  const titleEn = document.getElementById('inTitleEn').value.trim();
+  const author  = document.getElementById('inAuthor').value.trim();
+  const url     = document.getElementById('inUrl').value.trim();
+
+  // 필수 필드 검증
+  let hasError = false;
+  if (!title)   { document.getElementById('inTitle').classList.add('error');   hasError = true; }
+  if (!titleEn) { document.getElementById('inTitleEn').classList.add('error'); hasError = true; }
+  if (!author)  { document.getElementById('inAuthor').classList.add('error');  hasError = true; }
+  if (!url)     { document.getElementById('inUrl').classList.add('error');     hasError = true; }
+  if (hasError) { showToast('모든 항목을 입력해주세요', 'error'); return; }
+
+  const newWork = { title, titleEn, author, url };
+
+  // 중복 확인
+  const key = dedupKey(newWork);
+  if (works.some(w => dedupKey(w) === key)) {
+    showToast('이미 동일한 작품이 등록되어 있습니다 (작품명+영문명+작가명+URL 모두 일치)', 'error');
+    return;
+  }
+
+  // 추가
+  works.push(newWork);
+  try {
+    await apiPost({ action: 'addWorks', works: [newWork] });
+    showToast('작품이 추가됐습니다', 'success');
+  } catch (e) { showToast('시트 저장 실패', 'error'); }
+
+  // 폼 초기화
+  ['inTitle','inTitleEn','inAuthor','inUrl'].forEach(id => document.getElementById(id).value = '');
+  render();
+}
+
+// ── Delete ──
+async function deleteWork(idx) {
+  if (!confirm(`"${works[idx].title}" 을(를) 삭제하시겠습니까?`)) return;
+  const removed = works.splice(idx, 1)[0];
+  try {
+    await apiPost({ action: 'deleteWork', work: removed });
+    showToast('삭제됐습니다', 'success');
+  } catch (e) { showToast('시트 삭제 실패', 'error'); }
+  render();
+}
+
+// ── File Upload ──
+function handleFileUpload(event) {
+  const file = event.target.files[0]; if (!file) return; event.target.value = '';
+  const fr = new FileReader(); fr.onload = e => processExcel(e.target.result); fr.readAsArrayBuffer(file);
+}
+
+async function processExcel(buffer) {
+  showProgress('파일 파싱 중...', 15);
+  let parsed;
+  try { parsed = parseExcel(buffer, ['title', 'titleEn', 'url', 'author']); }
+  catch (e) { hideProgress(); showToast('파일 파싱 실패', 'error'); return; }
+
+  showProgress('중복 확인 중...', 50);
+  const existingKeys = new Set(works.map(dedupKey));
+  let added = 0, duplicates = 0, errors = 0;
+  const newWorks = [];
+
+  for (const r of parsed) {
+    const title   = String(r.title   || '').trim();
+    const titleEn = String(r.titleEn || '').trim();
+    const author  = String(r.author  || '').trim();
+    const url     = String(r.url     || '').trim();
+    if (!title || !author || !titleEn || !url) { errors++; continue; }
+
+    const w = {
+      title,
+      titleEn: String(r.titleEn || '').trim(),
+      author,
+      url: String(r.url || '').trim()
+    };
+    const key = dedupKey(w);
+    if (existingKeys.has(key)) { duplicates++; continue; }
+    existingKeys.add(key);
+    newWorks.push(w);
+    added++;
+  }
+
+  works.push(...newWorks);
+  showProgress('DB 갱신 중...', 80);
+  if (newWorks.length) {
+    apiPost({ action: 'addWorks', works: newWorks }).catch(() => showToast('시트 동기화 실패', 'error'));
+  }
+  hideProgress(); render(); showUploadResult(added, duplicates, errors);
+}
+
+// ── Sort ──
+function sortBy(key) {
+  if (currentSort.key === key) currentSort.dir *= -1; else { currentSort.key = key; currentSort.dir = 1; }
+  document.querySelectorAll('th').forEach(t => t.classList.remove('sorted'));
+  event.currentTarget.classList.add('sorted');
+  render();
+}
+
+function clearError(el) { el.classList.remove('error'); }
+
+// Enter 키로 폼 제출
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && ['inTitle','inTitleEn','inAuthor','inUrl'].includes(e.target.id)) addWork();
+});
+
+loadFromSheets().then(render);
+</script>
+</body>
+</html>

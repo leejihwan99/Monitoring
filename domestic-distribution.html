@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>국내유포작품관리</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="css/shared.css">
+<style>
+  :root { --page-color: var(--green); }
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="header-dot green"></div>
+    <div>
+      <div class="header-brand">저작권 통합관리 시스템</div>
+      <div class="header-page">국내유포작품관리</div>
+    </div>
+    <div class="header-divider"></div>
+    <nav class="nav">
+      <a class="nav-btn" href="crawling-monitor.html">크롤링 모니터링</a>
+      <a class="nav-btn active" href="domestic-distribution.html">국내유포작품관리</a>
+      <a class="nav-btn" href="work-management.html">검색작품관리</a>
+      <a class="nav-btn" href="search-monitor.html">검색 모니터링</a>
+    </nav>
+  </div>
+  <div class="sheet-badge" id="sheetBadge">● GOOGLE SHEETS</div>
+</div>
+
+<div class="main">
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-label">전체 유포 건수</div><div class="stat-value accent" id="statTotal">0</div></div>
+    <div class="stat-card"><div class="stat-label">전체 유포 작품 수</div><div class="stat-value green" id="statWorks">0</div></div>
+  </div>
+
+  <div class="controls">
+    <label class="upload-btn" for="fileInput">↑ 엑셀 업로드</label>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFileUpload(event)">
+  </div>
+
+  <div class="cols">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">작품별 유포 횟수</div>
+      </div>
+      <div class="scroll-body">
+        <table>
+          <thead><tr><th style="width:36px">#</th><th>작품명</th><th class="r">유포횟수</th></tr></thead>
+          <tbody id="leftBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">분기별 10회 이상 유포 작품</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <select class="year-select" id="yearSelect" onchange="renderRight()"></select>
+          <div class="quarter-tabs">
+            <button class="q-btn active" data-q="1" onclick="setQuarter(this)">1분기</button>
+            <button class="q-btn" data-q="2" onclick="setQuarter(this)">2분기</button>
+            <button class="q-btn" data-q="3" onclick="setQuarter(this)">3분기</button>
+            <button class="q-btn" data-q="4" onclick="setQuarter(this)">4분기</button>
+          </div>
+        </div>
+      </div>
+      <div class="scroll-body">
+        <table>
+          <thead><tr><th style="width:36px">#</th><th>작품명</th><th>플랫폼</th><th class="r">유포횟수</th></tr></thead>
+          <tbody id="rightBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="upload-progress" id="uploadProgress">
+  <div id="uploadMsg">처리 중...</div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="js/shared.js"></script>
+<script>
+let logs     = [];
+let currentQ = 1;
+
+async function loadFromSheets() {
+  try {
+    const data = await apiGet('getDistribution');
+    logs = (data.logs || []).map(l => ({ ...l, date: toYMD(l.date) }));
+    showToast('시트 데이터 로드 완료', 'success');
+  } catch (e) { showToast('시트 연결 실패', 'error'); }
+}
+
+function getYears() {
+  return [...new Set(logs.map(l => getYear(l.date)).filter(Boolean))].sort((a,b) => b-a);
+}
+
+function computeAllWorks() {
+  const map = {};
+  for (const l of logs) { const k = l.workName||'(미확인)'; map[k] = (map[k]||0)+1; }
+  return Object.entries(map).map(([name,count])=>({name,count})).sort((a,b)=>b.count-a.count);
+}
+
+function computeQuarter(year, q) {
+  const filtered = logs.filter(l => getYear(l.date)===year && getQuarter(l.date)===q);
+  const map = {};
+  for (const l of filtered) {
+    const k = l.workName||'(미확인)';
+    if (!map[k]) map[k] = { name:k, count:0, platforms:new Set() };
+    map[k].count++;
+    if (l.platform) map[k].platforms.add(l.platform);
+  }
+  return Object.values(map).filter(r=>r.count>=10).sort((a,b)=>b.count-a.count)
+    .map(r=>({...r, platforms:[...r.platforms]}));
+}
+
+function render() {
+  document.getElementById('statTotal').textContent = logs.length.toLocaleString();
+  document.getElementById('statWorks').textContent = new Set(logs.map(l=>l.workName)).size.toLocaleString();
+  const years = getYears();
+  const sel = document.getElementById('yearSelect');
+  const prev = sel.value;
+  sel.innerHTML = years.map(y=>`<option value="${y}">${y}년</option>`).join('');
+  if (prev && years.includes(Number(prev))) sel.value = prev;
+  renderLeft();
+  renderRight();
+}
+
+function renderLeft() {
+  const rows = computeAllWorks(), max = rows[0]?.count||1;
+  const tbody = document.getElementById('leftBody');
+  if (!rows.length) { tbody.innerHTML=`<tr><td colspan="3" class="empty-msg">데이터 없음</td></tr>`; return; }
+  tbody.innerHTML = rows.map((r,i) => {
+    const pct=Math.round(r.count/max*100), rankClass=i===0?'top1':i===1?'top2':i===2?'top3':'';
+    const barClass=r.count>=20?'hot':r.count>=10?'warm':'', countClass=r.count>=20?'over20':r.count>=10?'over10':'';
+    return `<tr>
+      <td><span class="rank ${rankClass}">${i+1}</span></td>
+      <td><span class="work-name">${r.name}</span></td>
+      <td class="r"><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill ${barClass}" style="width:${pct}%"></div></div><span class="count-badge ${countClass}">${r.count}</span></div></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderRight() {
+  const year = Number(document.getElementById('yearSelect').value)||getYears()[0];
+  if (!year) { document.getElementById('rightBody').innerHTML=`<tr><td colspan="4" class="empty-msg">데이터 없음</td></tr>`; return; }
+  const qM={1:'1~3월',2:'4~6월',3:'7~9월',4:'10~12월'};
+  // quarterLabel 제거됨
+  const rows=computeQuarter(year,currentQ), max=rows[0]?.count||1;
+  const tbody=document.getElementById('rightBody');
+  if (!rows.length) { tbody.innerHTML=`<tr><td colspan="4" class="empty-msg">해당 분기에 10회 이상 유포 작품 없음</td></tr>`; return; }
+  tbody.innerHTML=rows.map((r,i)=>{
+    const pct=Math.round(r.count/max*100), rankClass=i===0?'top1':i===1?'top2':i===2?'top3':'';
+    const countClass=r.count>=20?'over20':'over10';
+    const platformHtml=r.platforms.slice(0,3).map(p=>`<span class="platform-tag">${p}</span>`).join(' ');
+    return `<tr>
+      <td><span class="rank ${rankClass}">${i+1}</span></td>
+      <td><span class="work-name">${r.name}</span></td>
+      <td>${platformHtml||'—'}</td>
+      <td class="r"><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill hot" style="width:${pct}%"></div></div><span class="count-badge ${countClass}">${r.count}</span></div></td>
+    </tr>`;
+  }).join('');
+}
+
+function setQuarter(btn) {
+  currentQ=Number(btn.dataset.q);
+  document.querySelectorAll('.q-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); renderRight();
+}
+
+function handleFileUpload(event) {
+  const file=event.target.files[0]; if (!file) return; event.target.value='';
+  const fr=new FileReader(); fr.onload=e=>processExcel(e.target.result); fr.readAsArrayBuffer(file);
+}
+
+async function processExcel(buffer) {
+  showProgress('파일 파싱 중...',15);
+  let parsed;
+  try { parsed=parseExcel(buffer,['platform','workName','link','date']); }
+  catch(e) { hideProgress(); showToast('파일 파싱 실패','error'); return; }
+  showProgress('중복 확인 중...',50);
+  const keys=new Set(logs.map(l=>`${l.platform}|${l.workName}|${l.link}|${l.date}`));
+  let added=0,duplicates=0,errors=0; const newLogs=[];
+  for (const r of parsed) {
+    const workName=String(r.workName||'').trim(), date=r.date;
+    if (!workName||!date) { errors++; continue; }
+    const platform=String(r.platform||'').trim(), link=String(r.link||'').trim(), key=`${platform}|${workName}|${link}|${date}`;
+    if (keys.has(key)) { duplicates++; continue; }
+    keys.add(key); newLogs.push({platform,workName,link:r.link||'',date}); added++;
+  }
+  logs.push(...newLogs);
+  showProgress('DB 갱신 중...',80);
+  if (newLogs.length) apiPost({action:'addDistribution',logs:newLogs}).catch(()=>showToast('시트 동기화 실패','error'));
+  hideProgress(); render(); showUploadResult(added,duplicates,errors);
+}
+
+loadFromSheets().then(render);
+</script>
+</body>
+</html>

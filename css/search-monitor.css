@@ -1,0 +1,94 @@
+:root { --page-color: var(--purple); }
+
+/* Tabs */
+.tab-bar { display:flex; gap:2px; margin-bottom:14px; border-bottom:1px solid var(--border); }
+.tab-btn { height:36px; padding:0 16px; background:none; border:none; border-bottom:2px solid transparent; margin-bottom:-1px; color:var(--text3); font-family:var(--sans); font-size:13px; font-weight:600; cursor:pointer; transition:all 0.14s; white-space:nowrap; }
+.tab-btn:hover { color:var(--text2); }
+.tab-btn.active { color:var(--purple); border-bottom-color:var(--purple); }
+.tab-pane { display:none; }
+.tab-pane.active { display:block; }
+
+/* Chart section */
+.chart-section { background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:18px 22px; margin-bottom:18px; }
+.chart-header  { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.chart-title   { font-size:13px; font-weight:700; color:var(--text); }
+.chart-legend  { display:flex; gap:14px; }
+.legend-item   { display:flex; align-items:center; gap:5px; font-family:var(--mono); font-size:11px; color:var(--text2); }
+.legend-dot    { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.chart-wrap    { position:relative; height:170px; }
+
+.cols-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:18px; }
+
+/* Site badges */
+.site-badge { display:inline-block; padding:2px 8px; border-radius:3px; font-size:11px; font-weight:700; cursor:pointer; transition:opacity 0.13s; white-space:nowrap; }
+.site-badge:hover { opacity:0.78; }
+.ss-신규   { background:rgba(79,142,247,0.13);  color:var(--accent); border:1px solid rgba(79,142,247,0.28); }
+.ss-제외   { background:rgba(78,86,112,0.15);   color:var(--text3);  border:1px solid var(--border); }
+.ss-플랫폼 { background:rgba(46,204,138,0.1);   color:var(--green);  border:1px solid rgba(46,204,138,0.28); }
+.ss-침해   { background:rgba(232,85,85,0.1);    color:var(--red);    border:1px solid rgba(232,85,85,0.28); }
+
+/* Log status pills */
+.log-pill { display:inline-block; padding:2px 8px; border-radius:3px; font-family:var(--mono); font-size:10px; font-weight:700; white-space:nowrap; }
+.log-pill.active   { background:rgba(79,142,247,0.1);  color:var(--accent); border:1px solid rgba(79,142,247,0.25); }
+.log-pill.reported { background:rgba(240,137,74,0.1);  color:var(--orange); border:1px solid rgba(240,137,74,0.25); }
+.log-pill.deleted  { background:rgba(46,204,138,0.1);  color:var(--green);  border:1px solid rgba(46,204,138,0.25); }
+
+/* URL status */
+.url-active  { font-family:var(--mono); font-size:10px; font-weight:700; color:var(--accent); }
+.url-deleted { font-family:var(--mono); font-size:10px; font-weight:700; color:var(--green); }
+
+/* Run button */
+.run-btn { height:34px; padding:0 14px; border-radius:6px; border:1px solid var(--purple); background:rgba(155,114,245,0.1); color:var(--purple); font-family:var(--sans); font-size:12px; font-weight:600; cursor:pointer; transition:all 0.13s; display:flex; align-items:center; gap:5px; }
+.run-btn:hover { background:rgba(155,114,245,0.2); }
+.run-btn:disabled { opacity:0.4; cursor:not-allowed; }
+
+/* Log button */
+.log-btn { height:24px; padding:0 9px; border-radius:4px; border:1px solid var(--border2); background:var(--bg3); color:var(--text3); font-family:var(--sans); font-size:11px; font-weight:600; cursor:pointer; transition:all 0.12s; white-space:nowrap; }
+.log-btn:hover { border-color:var(--purple); color:var(--purple); background:rgba(155,114,245,0.08); }
+
+/* URL cells */
+.url-td { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:var(--mono); font-size:11px; }
+.url-td a { color:var(--accent); text-decoration:none; }
+.url-td a:hover { text-decoration:underline; }
+.snippet-td { max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text3); font-size:12px; }
+
+/* Date range picker */
+.date-range-wrap { display:flex; align-items:center; gap:4px; }
+.date-quick-btn { height:30px; padding:0 10px; border-radius:5px; border:1px solid var(--border2); background:var(--bg3); color:var(--text2); font-family:var(--sans); font-size:11px; font-weight:500; cursor:pointer; transition:all 0.12s; white-space:nowrap; }
+.date-quick-btn:hover  { border-color:var(--accent); color:var(--accent); }
+.date-quick-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+.date-range-sep { color:var(--text3); font-size:11px; padding:0 2px; }
+
+/* Site status change modal */
+.site-modal { background:var(--bg2); border:1px solid var(--border2); border-radius:10px; padding:18px; width:260px; animation:modalIn 0.14s ease; }
+.site-modal h3 { font-family:var(--sans); font-size:13px; font-weight:700; color:var(--text); margin-bottom:13px; }
+.site-status-opts { display:flex; flex-direction:column; gap:6px; }
+.ss-opt { padding:9px 13px; border-radius:6px; border:1px solid var(--border2); background:var(--bg3); cursor:pointer; font-family:var(--sans); font-size:12px; font-weight:500; color:var(--text2); transition:all 0.12s; text-align:left; }
+.ss-opt:hover { border-color:var(--accent); color:var(--accent); }
+
+/* Log detail modal */
+.log-modal { background:var(--bg2); border:1px solid var(--border2); border-radius:12px; width:960px; max-width:96vw; max-height:88vh; display:flex; flex-direction:column; animation:modalIn 0.17s ease; }
+.log-modal-header { padding:16px 22px 13px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.log-modal-title { font-family:var(--sans); font-size:14px; font-weight:700; color:var(--text); }
+.log-modal-title span { color:var(--purple); }
+.log-modal-body { padding:18px 22px; overflow-y:auto; display:flex; flex-direction:column; gap:14px; }
+.modal-chart-wrap { position:relative; height:150px; }
+
+/* Modal filters */
+.modal-filters { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+.modal-filter-btn { height:26px; padding:0 11px; border-radius:5px; border:1px solid var(--border2); background:var(--bg3); color:var(--text2); font-family:var(--sans); font-size:11px; font-weight:600; cursor:pointer; transition:all 0.12s; white-space:nowrap; }
+.modal-filter-btn:hover  { border-color:var(--accent); color:var(--accent); }
+.modal-filter-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+.modal-sep { width:1px; height:18px; background:var(--border2); }
+
+/* Copy button */
+.copy-btn { height:28px; padding:0 12px; border-radius:5px; border:1px solid var(--border2); background:var(--bg3); color:var(--text2); font-family:var(--sans); font-size:11px; font-weight:600; cursor:pointer; transition:all 0.12s; display:flex; align-items:center; gap:4px; }
+.copy-btn:hover { border-color:var(--green); color:var(--green); }
+
+/* Date nav */
+.date-nav { display:flex; align-items:center; gap:0; border:1px solid var(--border2); border-radius:6px; overflow:hidden; }
+.date-nav-btn { width:28px; height:34px; background:var(--bg3); border:none; color:var(--text2); font-size:14px; cursor:pointer; transition:all 0.12s; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.date-nav-btn:hover { background:var(--border2); color:var(--text); }
+.date-nav-today { height:34px; padding:0 12px; background:var(--bg2); border:none; border-left:1px solid var(--border2); border-right:1px solid var(--border2); color:var(--text); font-family:var(--mono); font-size:12px; font-weight:500; cursor:pointer; white-space:nowrap; min-width:100px; transition:color 0.12s; }
+.date-nav-today:hover { color:var(--accent); }
+.date-nav-today.filtered { color:var(--accent); }

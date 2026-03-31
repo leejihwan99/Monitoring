@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>검색 모니터링</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<link rel="stylesheet" href="css/shared.css">
+<link rel="stylesheet" href="css/search-monitor.css">
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="header-dot" style="background:var(--purple);color:var(--purple);box-shadow:0 0 6px var(--purple)"></div>
+    <div>
+      <div class="header-brand">저작권 통합관리 시스템</div>
+      <div class="header-page">검색 모니터링</div>
+    </div>
+    <div class="header-divider"></div>
+    <nav class="nav">
+      <a class="nav-btn" href="crawling-monitor.html">크롤링 모니터링</a>
+      <a class="nav-btn" href="domestic-distribution.html">국내유포작품관리</a>
+      <a class="nav-btn" href="work-management.html">검색작품관리</a>
+      <a class="nav-btn active" href="search-monitor.html">검색 모니터링</a>
+    </nav>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <button class="run-btn" id="runSearchBtn" onclick="runSearchNow()">▶ 지금 검색 실행</button>
+    <div class="sheet-badge" id="sheetBadge">● GOOGLE SHEETS</div>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="cols-3">
+    <div class="stat-card"><div class="stat-label">전체 로그 수</div><div class="stat-value" id="statLogs">0</div></div>
+    <div class="stat-card"><div class="stat-label">신고 URL 수</div><div class="stat-value orange" id="statReported">0</div></div>
+    <div class="stat-card"><div class="stat-label">삭제 확인 URL</div><div class="stat-value green" id="statDeleted">0</div></div>
+  </div>
+
+  <div class="chart-section">
+    <div class="chart-header">
+      <span class="chart-title">일별 신고 / 삭제 추이</span>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div>신고 URL</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>삭제 확인</div>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="work"   onclick="switchTab(this)">작품별</button>
+    <button class="tab-btn"        data-tab="site"   onclick="switchTab(this)">사이트별</button>
+    <button class="tab-btn"        data-tab="all"    onclick="switchTab(this)">전체 로그</button>
+    <button class="tab-btn"        data-tab="report" onclick="switchTab(this)">신고 URL</button>
+  </div>
+
+  <!-- 탭: 작품별 -->
+  <div class="tab-pane active" id="tab-work">
+    <div class="controls">
+      <div class="search-box">
+        <span class="search-icon">⌕</span>
+        <input type="text" id="searchWork" placeholder="작품명 검색..." oninput="renderWork()">
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th onclick="sortWork('workName')">작품명 <span class="sort-icon">↕</span></th>
+          <th onclick="sortWork('titleEn')">영문명 <span class="sort-icon">↕</span></th>
+          <th class="r" onclick="sortWork('count')">로그 수 <span class="sort-icon">↕</span></th>
+          <th class="r" onclick="sortWork('infringeCount')">침해 의심 <span class="sort-icon">↕</span></th>
+          <th onclick="sortWork('lastDate')">최근 발견일 <span class="sort-icon">↕</span></th>
+          <th style="width:56px"></th>
+        </tr></thead>
+        <tbody id="workBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 탭: 사이트별 -->
+  <div class="tab-pane" id="tab-site">
+    <div class="controls">
+      <div class="search-box">
+        <span class="search-icon">⌕</span>
+        <input type="text" id="searchSite" placeholder="사이트명 검색..." oninput="renderSite()">
+      </div>
+      <select class="status-select" id="filterStatus" onchange="renderSite()" style="height:34px;padding:0 10px;font-size:12px">
+        <option value="">전체 상태</option>
+        <option>신규</option><option>플랫폼</option><option>침해</option><option>제외</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th onclick="sortSite('siteName')">사이트명 <span class="sort-icon">↕</span></th>
+          <th onclick="sortSite('status')">상태 <span class="sort-icon">↕</span></th>
+          <th class="r" onclick="sortSite('count')">로그 수 <span class="sort-icon">↕</span></th>
+          <th onclick="sortSite('lastDate')">마지막 식별일 <span class="sort-icon">↕</span></th>
+          <th>상태 변경</th>
+          <th style="width:56px"></th>
+        </tr></thead>
+        <tbody id="siteBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 탭: 전체 로그 -->
+  <div class="tab-pane" id="tab-all">
+    <div class="controls">
+      <div class="search-box">
+        <span class="search-icon">⌕</span>
+        <input type="text" id="searchAll" placeholder="작품명 · URL · 사이트 검색..." oninput="renderAllTab()">
+      </div>
+      <select class="status-select" id="filterSiteStatus" onchange="renderAllTab()" style="height:34px;padding:0 10px;font-size:12px">
+        <option value="">전체 상태</option>
+        <option>신규</option><option>플랫폼</option><option>침해</option><option>제외</option>
+      </select>
+      <div class="date-nav">
+        <button class="date-nav-btn" onclick="shiftDate(-1)" title="전일">‹</button>
+        <button class="date-nav-today" id="dateNavLabel" onclick="clearDateFilter()">전체</button>
+        <button class="date-nav-btn" onclick="shiftDate(1)" title="익일">›</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th onclick="sortAll('workName')">작품명 <span class="sort-icon">↕</span></th>
+          <th onclick="sortAll('siteName')">사이트 <span class="sort-icon">↕</span></th>
+          <th>제목</th>
+          <th>URL</th>
+          <th>스니펫</th>
+          <th onclick="sortAll('firstFoundDate')">최초발견 <span class="sort-icon">↕</span></th>
+        </tr></thead>
+        <tbody id="allBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 탭: 신고 URL -->
+  <div class="tab-pane" id="tab-report">
+    <div class="controls">
+      <div class="search-box">
+        <span class="search-icon">⌕</span>
+        <input type="text" id="searchReport" placeholder="URL 검색..." oninput="renderReport()">
+      </div>
+      <select class="status-select" id="filterReportStatus" onchange="renderReport()" style="height:34px;padding:0 10px;font-size:12px">
+        <option value="">전체</option>
+        <option value="active">활성</option>
+        <option value="deleted">삭제</option>
+      </select>
+      <div class="spacer"></div>
+      <label class="upload-btn" for="reportFileInput">↑ 신고 URL 업로드</label>
+      <input type="file" id="reportFileInput" accept=".xlsx,.xls" onchange="handleReportUpload(event)">
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>URL</th>
+          <th onclick="sortReport('reportDate')">신고일 <span class="sort-icon">↕</span></th>
+          <th onclick="sortReport('deleted')">상태 <span class="sort-icon">↕</span></th>
+        </tr></thead>
+        <tbody id="reportBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- 사이트 상태 모달 -->
+<div class="modal-overlay" id="siteModal" onclick="if(event.target===this)closeSiteModal()">
+  <div class="site-modal">
+    <h3>상태 변경 — <span id="siteModalName" style="color:var(--purple)"></span></h3>
+    <div class="site-status-opts">
+      <button class="ss-opt" onclick="applySiteStatus('신규')">● 신규</button>
+      <button class="ss-opt" onclick="applySiteStatus('플랫폼')">● 플랫폼</button>
+      <button class="ss-opt" onclick="applySiteStatus('침해')">● 침해</button>
+      <button class="ss-opt" onclick="applySiteStatus('제외')">● 제외 (이후 수집 안 함)</button>
+    </div>
+  </div>
+</div>
+
+<!-- 로그 상세 모달 -->
+<div class="modal-overlay" id="logDetailModal" onclick="if(event.target===this)closeLogModal()">
+  <div class="log-modal">
+    <div class="log-modal-header">
+      <div class="log-modal-title" id="logModalTitle">로그 — <span></span></div>
+      <div style="display:flex;align-items:center;gap:7px">
+        <button class="copy-btn" onclick="copyLogList()">⎘ 목록 복사</button>
+        <button class="modal-close" onclick="closeLogModal()">✕</button>
+      </div>
+    </div>
+    <div class="log-modal-body">
+
+      <!-- 미니 차트 -->
+      <div class="chart-section" style="margin:0;padding:14px 18px">
+        <div class="chart-header" style="margin-bottom:10px">
+          <span style="font-size:12px;font-weight:700;color:var(--text)" id="modalChartTitle">신고 / 삭제 추이</span>
+          <div class="chart-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div>신고</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>삭제</div>
+          </div>
+        </div>
+        <div class="modal-chart-wrap"><canvas id="modalChart"></canvas></div>
+      </div>
+
+      <!-- 필터 -->
+      <div class="modal-filters">
+        <button class="modal-filter-btn active" data-status=""         onclick="setModalStatusFilter(this)">전체</button>
+        <button class="modal-filter-btn"        data-status="active"   onclick="setModalStatusFilter(this)">활성</button>
+        <button class="modal-filter-btn"        data-status="reported" onclick="setModalStatusFilter(this)">신고됨</button>
+        <button class="modal-filter-btn"        data-status="deleted"  onclick="setModalStatusFilter(this)">삭제</button>
+        <div class="modal-sep"></div>
+        <div class="date-nav">
+          <button class="date-nav-btn" onclick="shiftModalDate(-1)">‹</button>
+          <button class="date-nav-today" id="modalDateNavLabel" onclick="clearModalDateFilter()">전체</button>
+          <button class="date-nav-btn" onclick="shiftModalDate(1)">›</button>
+        </div>
+      </div>
+
+      <!-- 로그 테이블 -->
+      <div class="table-wrap" style="margin:0">
+        <table>
+          <thead><tr>
+            <th>작품명</th>
+            <th>작품 URL</th>
+            <th>검색 제목</th>
+            <th>식별 URL</th>
+            <th>상태</th>
+          </tr></thead>
+          <tbody id="modalLogBody"></tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="upload-progress" id="uploadProgress">
+  <div id="uploadMsg">처리 중...</div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="js/shared.js"></script>
+<script src="js/search-monitor.js"></script>
+</body>
+</html>
