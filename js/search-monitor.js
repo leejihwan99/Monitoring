@@ -135,25 +135,38 @@ function sortWork(key) { workSort.key===key?workSort.dir*=-1:(workSort.key=key,w
 function renderSite() {
   const q=document.getElementById('searchSite').value.trim().toLowerCase();
   const stFilt=document.getElementById('filterStatus').value;
+  const rs=rSet(), ds=dSet();
   const map={};
   searchLogs.forEach(r => {
     const s=r.siteName||'(미확인)';
-    if (!map[s]) map[s]={ siteName:s, count:0, lastDate:'' };
+    if (!map[s]) map[s]={ siteName:s, count:0, active:0, reported:0, deleted:0, lastDate:'' };
     map[s].count++;
+    // URL 상태별 집계
+    if (ds.has(r.url))      map[s].deleted++;
+    else if (rs.has(r.url)) map[s].reported++;
+    else                    map[s].active++;
     if (!map[s].lastDate||r.searchDate>map[s].lastDate) map[s].lastDate=r.searchDate;
   });
-  Object.keys(siteStatuses).forEach(s=>{ if (!map[s]) map[s]={ siteName:s, count:0, lastDate:'' }; });
+  Object.keys(siteStatuses).forEach(s=>{ if (!map[s]) map[s]={ siteName:s, count:0, active:0, reported:0, deleted:0, lastDate:'' }; });
   let rows=Object.values(map).map(r=>({ ...r, status:siteStatuses[r.siteName]?.status||'신규' }));
   if (q) rows=rows.filter(r=>r.siteName.toLowerCase().includes(q));
   if (stFilt) rows=rows.filter(r=>r.status===stFilt);
   rows.sort((a,b)=>{ const av=a[siteSort.key]??'',bv=b[siteSort.key]??''; return (typeof av==='number'?av-bv:String(av).localeCompare(String(bv),'ko'))*siteSort.dir; });
   const tbody=document.getElementById('siteBody');
   if (!rows.length) { tbody.innerHTML=`<tr class="empty-row"><td colspan="6">데이터 없음</td></tr>`; return; }
-  tbody.innerHTML=rows.map(r=>`
-    <tr>
+  tbody.innerHTML=rows.map(r=>{
+    const countHtml = `<div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
+      <span style="font-family:var(--mono);font-size:13px;font-weight:500">${r.count.toLocaleString()}</span>
+      <span style="display:flex;gap:3px">
+        ${r.active   ?`<span class="log-pill active"   title="활성">${r.active}</span>`:''}
+        ${r.reported ?`<span class="log-pill reported" title="신고됨">${r.reported}</span>`:''}
+        ${r.deleted  ?`<span class="log-pill deleted"  title="삭제">${r.deleted}</span>`:''}
+      </span>
+    </div>`;
+    return `<tr>
       <td style="font-weight:700">${r.siteName}</td>
       <td><span class="site-badge ss-${r.status}">${r.status}</span></td>
-      <td class="num">${r.count.toLocaleString()}</td>
+      <td class="r">${countHtml}</td>
       <td class="date-cell">${r.lastDate||'—'}</td>
       <td>
         <select class="status-select" onchange="changeSiteStatus('${escQ(r.siteName)}',this.value)">
@@ -161,7 +174,8 @@ function renderSite() {
         </select>
       </td>
       <td><button class="log-btn" onclick="openLogModal('site','${escQ(r.siteName)}')">로그</button></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 function sortSite(key) { siteSort.key===key?siteSort.dir*=-1:(siteSort.key=key,siteSort.dir=-1); renderSite(); }
 
