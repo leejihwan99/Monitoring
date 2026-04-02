@@ -20,7 +20,7 @@
     </div>
     <div class="header-divider"></div>
     <nav class="nav">
-      <a class="nav-btn" href="index.html">크롤링 모니터링</a>
+      <a class="nav-btn" href="crawling-monitor.html">크롤링 모니터링</a>
       <a class="nav-btn" href="domestic-distribution.html">국내유포작품관리</a>
       <a class="nav-btn" href="work-management.html">검색작품관리</a>
       <a class="nav-btn active" href="search-monitor.html">검색 모니터링</a>
@@ -35,7 +35,7 @@
 <div class="main">
 
   <div class="cols-3">
-    <div class="stat-card"><div class="stat-label">전체 로그 수</div><div class="stat-value" id="statLogs">0</div></div>
+    <div class="stat-card"><div class="stat-label">식별 URL 수</div><div class="stat-value" id="statLogs">0</div></div>
     <div class="stat-card"><div class="stat-label">신고 URL 수</div><div class="stat-value orange" id="statReported">0</div></div>
     <div class="stat-card"><div class="stat-label">삭제 확인 URL</div><div class="stat-value green" id="statDeleted">0</div></div>
   </div>
@@ -184,7 +184,7 @@
 </div>
 
 <!-- 로그 상세 모달 -->
-<div class="modal-overlay" id="logDetailModal" onclick="if(event.target===this)closeLogModal()">
+<div class="modal-overlay log-modal-overlay" id="logDetailModal" onclick="if(event.target===this)closeLogModal()">
   <div class="log-modal">
     <div class="log-modal-header">
       <div class="log-modal-title" id="logModalTitle">로그 — <span></span></div>
@@ -234,6 +234,9 @@
           <tbody id="modalLogBody"></tbody>
         </table>
       </div>
+
+      <!-- 페이지네이션 -->
+      <div class="pagination" id="modalPagination"></div>
 
     </div>
   </div>

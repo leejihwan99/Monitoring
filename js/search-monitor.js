@@ -60,7 +60,11 @@ function renderAll_fn() {
 }
 
 function updateStats() {
-  document.getElementById('statLogs').textContent     = searchLogs.length.toLocaleString();
+  const uniqueUrls = new Set(searchLogs.map(l=>l.url)).size;
+  const rs=rSet(), ds=dSet();
+  // 고유 URL 중 신고된 것
+  const uniqueReported = new Set([...rSet()].filter(u=>searchLogs.some(l=>l.url===u))).size;
+  document.getElementById('statLogs').textContent     = uniqueUrls.toLocaleString();
   document.getElementById('statReported').textContent = reportUrls.length.toLocaleString();
   document.getElementById('statDeleted').textContent  = reportUrls.filter(r=>r.deleted==='삭제').length.toLocaleString();
 }
@@ -109,12 +113,12 @@ function renderWork() {
   const map={};
   searchLogs.forEach(r => {
     const k=r.workName||'(미확인)';
-    if (!map[k]) map[k]={ workName:k, titleEn:r.titleEn||'', count:0, infringeCount:0, lastDate:'' };
-    map[k].count++;
-    if ((siteStatuses[r.siteName]?.status||'신규')==='침해') map[k].infringeCount++;
+    if (!map[k]) map[k]={ workName:k, titleEn:r.titleEn||'', urls:new Set(), infringeUrls:new Set(), lastDate:'' };
+    map[k].urls.add(r.url);
+    if ((siteStatuses[r.siteName]?.status||'신규')==='침해') map[k].infringeUrls.add(r.url);
     if (!map[k].lastDate||r.searchDate>map[k].lastDate) map[k].lastDate=r.searchDate;
   });
-  let rows=Object.values(map);
+  let rows=Object.values(map).map(r=>({ ...r, count:r.urls.size, infringeCount:r.infringeUrls.size }));
   if (q) rows=rows.filter(r=>r.workName.toLowerCase().includes(q)||r.titleEn.toLowerCase().includes(q));
   rows.sort((a,b)=>{ const av=a[workSort.key]??'',bv=b[workSort.key]??''; return (typeof av==='number'?av-bv:String(av).localeCompare(String(bv),'ko'))*workSort.dir; });
   const tbody=document.getElementById('workBody');
@@ -139,23 +143,28 @@ function renderSite() {
   const map={};
   searchLogs.forEach(r => {
     const s=r.siteName||'(미확인)';
-    if (!map[s]) map[s]={ siteName:s, count:0, active:0, reported:0, deleted:0, lastDate:'' };
-    map[s].count++;
-    // URL 상태별 집계
-    if (ds.has(r.url))      map[s].deleted++;
-    else if (rs.has(r.url)) map[s].reported++;
-    else                    map[s].active++;
+    if (!map[s]) map[s]={ siteName:s, urls:new Set(), lastDate:'' };
+    map[s].urls.add(r.url);
     if (!map[s].lastDate||r.searchDate>map[s].lastDate) map[s].lastDate=r.searchDate;
   });
-  Object.keys(siteStatuses).forEach(s=>{ if (!map[s]) map[s]={ siteName:s, count:0, active:0, reported:0, deleted:0, lastDate:'' }; });
-  let rows=Object.values(map).map(r=>({ ...r, status:siteStatuses[r.siteName]?.status||'신규' }));
+  Object.keys(siteStatuses).forEach(s=>{ if (!map[s]) map[s]={ siteName:s, urls:new Set(), lastDate:'' }; });
+  let rows=Object.values(map).map(r=>{
+    // 고유 URL 기준으로 상태별 집계
+    let active=0, reported=0, deleted=0;
+    r.urls.forEach(url=>{
+      if (ds.has(url))      deleted++;
+      else if (rs.has(url)) reported++;
+      else                  active++;
+    });
+    return { ...r, count:r.urls.size, active, reported, deleted, status:siteStatuses[r.siteName]?.status||'신규' };
+  });
   if (q) rows=rows.filter(r=>r.siteName.toLowerCase().includes(q));
   if (stFilt) rows=rows.filter(r=>r.status===stFilt);
   rows.sort((a,b)=>{ const av=a[siteSort.key]??'',bv=b[siteSort.key]??''; return (typeof av==='number'?av-bv:String(av).localeCompare(String(bv),'ko'))*siteSort.dir; });
   const tbody=document.getElementById('siteBody');
   if (!rows.length) { tbody.innerHTML=`<tr class="empty-row"><td colspan="6">데이터 없음</td></tr>`; return; }
   tbody.innerHTML=rows.map(r=>{
-    const countHtml = `<div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
+    const countHtml=`<div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
       <span style="font-family:var(--mono);font-size:13px;font-weight:500">${r.count.toLocaleString()}</span>
       <span style="display:flex;gap:3px">
         ${r.active   ?`<span class="log-pill active"   title="활성">${r.active}</span>`:''}
@@ -226,16 +235,13 @@ function updateDateNavLabel(id, date) {
 
 // ── 날짜 네비 (모달) ──
 function shiftModalDate(delta) {
-  const base = modalDateFilter || toYMD(new Date());
-  const d = new Date(base); d.setDate(d.getDate() + delta);
-  modalDateFilter = toYMD(d);
-  updateDateNavLabel('modalDateNavLabel', modalDateFilter);
-  renderModalLogs();
+  const base=modalDateFilter||toYMD(new Date()); const d=new Date(base); d.setDate(d.getDate()+delta);
+  modalDateFilter=toYMD(d); modalPage=1;
+  updateDateNavLabel('modalDateNavLabel',modalDateFilter); renderModalLogs();
 }
 function clearModalDateFilter() {
-  modalDateFilter = '';
-  updateDateNavLabel('modalDateNavLabel', '');
-  renderModalLogs();
+  modalDateFilter=''; modalPage=1;
+  updateDateNavLabel('modalDateNavLabel',''); renderModalLogs();
 }
 
 // ── 탭: 신고 URL ──
@@ -278,9 +284,14 @@ function closeSiteModal() { document.getElementById('siteModal').classList.remov
 async function applySiteStatus(status) { if (!editingSite) return; await changeSiteStatus(editingSite, status); closeSiteModal(); }
 
 // ── 로그 모달 ──
+let modalPage     = 1;
+const MODAL_PER_PAGE = 20;
+
+// ── 휠 이벤트 (제거됨 - 페이지네이션으로 대체) ──
+
 function openLogModal(type, key) {
   modalType=type; modalKey=key; modalStatusFilter='';
-  modalDateFilter='';
+  modalDateFilter=''; modalPage=1;
   modalLogs = type==='work'
     ? searchLogs.filter(l=>l.workName===key)
     : searchLogs.filter(l=>l.siteName===key);
@@ -294,13 +305,17 @@ function openLogModal(type, key) {
   renderModalChart();
   renderModalLogs();
   document.getElementById('logDetailModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
 }
+
 function closeLogModal() {
-  document.getElementById('logDetailModal').classList.remove('open');
+  const overlay = document.getElementById('logDetailModal');
+  overlay.classList.remove('open');
   if (modalChart) { modalChart.destroy(); modalChart=null; }
+  document.body.style.overflow = '';
 }
 function setModalStatusFilter(btn) {
-  modalStatusFilter=btn.dataset.status;
+  modalStatusFilter=btn.dataset.status; modalPage=1;
   document.querySelectorAll('.modal-filter-btn').forEach(b=>b.classList.toggle('active', b.dataset.status===modalStatusFilter));
   renderModalLogs();
 }
@@ -322,24 +337,58 @@ function renderModalLogs() {
   const rs=rSet(), ds=dSet();
   let rows=[...modalLogs];
   if (modalDateFilter) rows=rows.filter(r=>r.searchDate===modalDateFilter);
+
+  if (!modalDateFilter) {
+    const urlMap={};
+    rows.forEach(r=>{ if (!urlMap[r.url]||r.searchDate>urlMap[r.url].searchDate) urlMap[r.url]=r; });
+    rows=Object.values(urlMap);
+  }
   if (modalStatusFilter) {
     rows=rows.filter(r=>{ const s=ds.has(r.url)?'deleted':rs.has(r.url)?'reported':'active'; return s===modalStatusFilter; });
   }
   rows.sort((a,b)=>b.searchDate.localeCompare(a.searchDate));
+
+  const total=rows.length, totalPages=Math.max(1,Math.ceil(total/MODAL_PER_PAGE));
+  if (modalPage>totalPages) modalPage=totalPages;
+  const start=(modalPage-1)*MODAL_PER_PAGE;
+  const pageRows=rows.slice(start, start+MODAL_PER_PAGE);
+
   const tbody=document.getElementById('modalLogBody');
-  if (!rows.length) { tbody.innerHTML=`<tr><td colspan="5" class="empty-msg">로그 없음</td></tr>`; return; }
-  tbody.innerHTML=rows.map(r=>{
-    const workUrl=worksMeta[r.titleEn]?.url||'';
-    return `<tr>
-      <td style="font-weight:700;white-space:nowrap">${r.workName||'—'}</td>
-      <td class="url-td">${workUrl?`<a href="${workUrl}" target="_blank">${workUrl}</a>`:'—'}</td>
-      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${r.title||'—'}</td>
-      <td class="url-td">${r.url?`<a href="${r.url}" target="_blank">${r.url}</a>`:'—'}</td>
-      <td>${logPill(r.url)}</td>
-    </tr>`;
-  }).join('');
+  if (!rows.length) { tbody.innerHTML=`<tr><td colspan="5" class="empty-msg">로그 없음</td></tr>`; }
+  else {
+    tbody.innerHTML=pageRows.map(r=>{
+      const workUrl=worksMeta[r.titleEn]?.url||'';
+      return `<tr>
+        <td style="font-weight:700;white-space:nowrap">${r.workName||'—'}</td>
+        <td class="url-td">${workUrl?`<a href="${workUrl}" target="_blank">${workUrl}</a>`:'—'}</td>
+        <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${r.title||'—'}</td>
+        <td class="url-td">${r.url?`<a href="${r.url}" target="_blank">${r.url}</a>`:'—'}</td>
+        <td>${logPill(r.url)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // 페이지네이션
+  const pg=document.getElementById('modalPagination');
+  if (totalPages<=1) { pg.innerHTML=`<span class="page-info">${total.toLocaleString()}건</span>`; return; }
+  const maxBtn=7;
+  let sp=Math.max(1,modalPage-Math.floor(maxBtn/2));
+  let ep=Math.min(totalPages,sp+maxBtn-1);
+  if (ep-sp<maxBtn-1) sp=Math.max(1,ep-maxBtn+1);
+  let html=`<button class="page-btn" onclick="goModalPage(${modalPage-1})" ${modalPage===1?'disabled':''}>‹</button>`;
+  if (sp>1) html+=`<button class="page-btn" onclick="goModalPage(1)">1</button>${sp>2?'<span class="page-info">…</span>':''}`;
+  for (let i=sp;i<=ep;i++) html+=`<button class="page-btn ${i===modalPage?'active':''}" onclick="goModalPage(${i})">${i}</button>`;
+  if (ep<totalPages) html+=`${ep<totalPages-1?'<span class="page-info">…</span>':''}<button class="page-btn" onclick="goModalPage(${totalPages})">${totalPages}</button>`;
+  html+=`<button class="page-btn" onclick="goModalPage(${modalPage+1})" ${modalPage===totalPages?'disabled':''}>›</button>`;
+  html+=`<span class="page-info">${total.toLocaleString()}건</span>`;
+  pg.innerHTML=html;
 }
 
+function goModalPage(page) {
+  modalPage=page;
+  renderModalLogs();
+  document.getElementById('logDetailModal').scrollTop=0;
+}
 // ── 목록 복사 ──
 function copyLogList() {
   const rs=rSet(), ds=dSet();
