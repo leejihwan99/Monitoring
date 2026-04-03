@@ -36,11 +36,16 @@ async function loadAll() {
 }
 
 // ── URL 상태 ──
-const rSet = () => new Set(reportUrls.map(r=>r.url));
-const dSet = () => new Set(reportUrls.filter(r=>r.deleted==='삭제').map(r=>r.url));
+// URL 정규화 (대소문자, 후행 슬래시 통일)
+const normUrl = u => String(u||'').toLowerCase().replace(/\/$/, '').trim();
+
+const rSet = () => new Set(reportUrls.map(r=>normUrl(r.url)));
+const dSet = () => new Set(reportUrls.filter(r=>r.deleted==='삭제').map(r=>normUrl(r.url)));
+
 function getLogStatus(url) {
-  if (dSet().has(url)) return 'deleted';
-  if (rSet().has(url)) return 'reported';
+  const n = normUrl(url);
+  if (dSet().has(n)) return 'deleted';
+  if (rSet().has(n)) return 'reported';
   return 'active';
 }
 function logPill(url) {

@@ -2,7 +2,7 @@
 // shared.js — 저작권 통합관리 공통 유틸리티
 // ================================================================
 
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzZH_WCBktUyCTszxY2TUH08UFDfVxmnc0T-t851WbTxpvDRdefrul-pXGruc_9-q5Z/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxLOumoevYEyeKwXkFuy7WqADWmnlWyPYv5SN4nIhTGIHIp_X365kYwdk5ASzu9G4VS/exec';
 
 // ── Date utils ──────────────────────────────────────────────────
 function toYMD(val) {
