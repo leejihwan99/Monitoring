@@ -29,6 +29,7 @@ async function loadAll() {
     searchLogs   = sd.logs       || [];
     siteStatuses = sd.sites      || {};
     reportUrls   = sd.reportUrls || [];
+    invalidateUrlCache();
     worksMeta    = {};
     (wd.works || []).forEach(w => { worksMeta[w.titleEn] = { workName:w.title, url:w.url }; });
     showToast('데이터 로드 완료','success');
@@ -39,18 +40,21 @@ async function loadAll() {
 // URL 정규화 (대소문자, 후행 슬래시 통일)
 const normUrl = u => String(u||'').toLowerCase().replace(/\/$/, '').trim();
 
-const rSet = () => new Set(reportUrls.map(r=>normUrl(r.url)));
-const dSet = () => new Set(reportUrls.filter(r=>r.deleted==='삭제').map(r=>normUrl(r.url)));
+// 캐시된 Set — reportUrls 변경 시 invalidate
+let _rSetCache = null, _dSetCache = null;
+function invalidateUrlCache() { _rSetCache=null; _dSetCache=null; }
+const rSet = () => { if (!_rSetCache) _rSetCache=new Set(reportUrls.map(r=>normUrl(r.url))); return _rSetCache; };
+const dSet = () => { if (!_dSetCache) _dSetCache=new Set(reportUrls.filter(r=>r.deleted==='삭제').map(r=>normUrl(r.url))); return _dSetCache; };
 
 function getLogStatus(url) {
-  const n = normUrl(url);
+  const n=normUrl(url);
   if (dSet().has(n)) return 'deleted';
   if (rSet().has(n)) return 'reported';
   return 'active';
 }
 function logPill(url) {
-  const s = getLogStatus(url);
-  const label = s==='deleted'?'삭제':s==='reported'?'신고됨':'활성';
+  const s=getLogStatus(url);
+  const label=s==='deleted'?'삭제':s==='reported'?'신고됨':'활성';
   return `<span class="log-pill ${s}">${label}</span>`;
 }
 
@@ -157,8 +161,8 @@ function renderSite() {
     // 고유 URL 기준으로 상태별 집계
     let active=0, reported=0, deleted=0;
     r.urls.forEach(url=>{
-      if (ds.has(url))      deleted++;
-      else if (rs.has(url)) reported++;
+      if (ds.has(normUrl(url)))      deleted++;
+      else if (rs.has(normUrl(url))) reported++;
       else                  active++;
     });
     return { ...r, count:r.urls.size, active, reported, deleted, status:siteStatuses[r.siteName]?.status||'신규' };
@@ -328,8 +332,8 @@ function renderModalChart() {
   const rs=rSet(), ds=dSet(), rMap={}, dMap={};
   modalLogs.forEach(l => {
     const d=l.searchDate; if (!d) return;
-    if (rs.has(l.url)) rMap[d]=(rMap[d]||0)+1;
-    if (ds.has(l.url)) dMap[d]=(dMap[d]||0)+1;
+    if (rs.has(normUrl(l.url))) rMap[d]=(rMap[d]||0)+1;
+    if (ds.has(normUrl(l.url))) dMap[d]=(dMap[d]||0)+1;
   });
   const labels=[...new Set([...Object.keys(rMap),...Object.keys(dMap)])].sort();
   if (modalChart) modalChart.destroy();
@@ -349,7 +353,7 @@ function renderModalLogs() {
     rows=Object.values(urlMap);
   }
   if (modalStatusFilter) {
-    rows=rows.filter(r=>{ const s=ds.has(r.url)?'deleted':rs.has(r.url)?'reported':'active'; return s===modalStatusFilter; });
+    rows=rows.filter(r=>{ const s=ds.has(normUrl(r.url))?'deleted':rs.has(normUrl(r.url))?'reported':'active'; return s===modalStatusFilter; });
   }
   rows.sort((a,b)=>b.searchDate.localeCompare(a.searchDate));
 
@@ -399,7 +403,7 @@ function copyLogList() {
   const rs=rSet(), ds=dSet();
   let rows=[...modalLogs];
   if (modalDateFilter) rows=rows.filter(r=>r.searchDate===modalDateFilter);
-  if (modalStatusFilter) rows=rows.filter(r=>{ const s=ds.has(r.url)?'deleted':rs.has(r.url)?'reported':'active'; return s===modalStatusFilter; });
+  if (modalStatusFilter) rows=rows.filter(r=>{ const s=ds.has(normUrl(r.url))?'deleted':rs.has(normUrl(r.url))?'reported':'active'; return s===modalStatusFilter; });
   if (!rows.length) { showToast('복사할 데이터 없음','error'); return; }
   const header='작품명\t작품URL\t검색제목\t식별URL';
   const lines=rows.map(r=>{ const wu=worksMeta[r.titleEn]?.url||''; return [r.workName,wu,r.title,r.url].join('\t'); });
@@ -429,6 +433,7 @@ async function processReportExcel(buffer) {
     existingUrls.add(url); newUrls.push({url,reportDate,deleted:''}); added++;
   }
   reportUrls.push(...newUrls);
+  invalidateUrlCache();
   showProgress('DB 갱신 중...',80);
   if (newUrls.length) apiPost({action:'addReportUrls',urls:newUrls}).catch(()=>showToast('시트 동기화 실패','error'));
   hideProgress(); renderAll_fn(); showUploadResult(added,duplicates,errors);
